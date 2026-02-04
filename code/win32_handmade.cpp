@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <Xinput.h>
 
 // term - definition
 #define internal static
@@ -38,7 +40,9 @@ struct win32_window_dimension
     int Height;
 };
 
-win32_window_dimension
+
+
+internal win32_window_dimension
 win32_GetWindowDimension(HWND Window)
 {
     RECT ClientRect;
@@ -111,17 +115,17 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 }
 
 internal void
-Win32DisplayBufferInWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, win32_offscreen_buffer Buffer)
+Win32DisplayBufferInWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, win32_offscreen_buffer *Buffer)
 {
     StretchDIBits(DeviceContext,
         0, 0, WindowWidth, WindowHeight,
-        0, 0, Buffer.Width, Buffer.Height,
-        Buffer.Memory,
-        &Buffer.Info,
+        0, 0, Buffer->Width, Buffer->Height,
+        Buffer->Memory,
+        &Buffer->Info,
         DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT CALLBACK
+internal LRESULT CALLBACK
 Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 {
     LRESULT Result = 0;
@@ -153,6 +157,87 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             OutputDebugStringA("WM_ACTIVATEAPP\n");
         } break;
 
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            uint32 VKCode = WParam;
+
+            // gets the value of the value of the 30th bit
+            bool WasDown = ((LParam & (1 << 30)) != 0);
+            bool IsDown = ((LParam & (1 << 31)) == 0);
+            if (IsDown == WasDown)
+            {
+                break;
+            }
+
+            if (VKCode == 'W')
+            {
+
+            }
+            else if (VKCode == 'A')
+            {
+
+            }
+            else if (VKCode == 'S')
+            {
+
+            }
+            else if (VKCode == 'D')
+            {
+
+            }
+            else if (VKCode == 'E')
+            {
+
+            }
+            else if (VKCode == 'Q')
+            {
+
+            }
+            else if (VKCode == VK_SPACE)
+            {
+
+            }
+            else if (VKCode == VK_UP)
+            {
+
+            }
+            else if (VKCode == VK_DOWN)
+            {
+
+            }
+            else if (VKCode == VK_LEFT)
+            {
+
+            }
+            else if (VKCode == VK_RIGHT)
+            {
+
+            }
+            else if (VKCode == VK_ESCAPE)
+            {
+                OutputDebugStringA("ESC: ");
+                if (IsDown)
+                {
+                    OutputDebugStringA("IsDown ");
+                }
+                if (WasDown)
+                {
+                    OutputDebugStringA("WasDown");
+                }
+                OutputDebugStringA("\n");
+            }
+            
+            // Ensure Alt + F4 Works
+            bool AltKeyWasDown = ((LParam & (1 << 29)) != 0);
+            if ((VKCode == VK_F4) && AltKeyWasDown)
+            {
+                GlobalRunning = false;
+            }
+        } break;
+
         case WM_PAINT:
         {
             PAINTSTRUCT Paint;
@@ -163,7 +248,7 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             int Height = Paint.rcPaint.bottom - Paint.rcPaint.top; // px num of bottom - top of window
 
             win32_window_dimension Dimension = win32_GetWindowDimension(Window);
-            Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackbuffer);
+            Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, &GlobalBackbuffer);
         } break;
 
         default:
@@ -232,14 +317,60 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                     DispatchMessage(&Message);
                 }
 
+                for (DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++)
+                {
+                    XINPUT_STATE ControllerState;
+                    if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                    {
+                        // NOTE: Controller is connected
+                        // TODO: See if ControllerState.dwPacketNumber increments too fast
+                        XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
+                        
+                        bool Up =               (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+                        bool Down =             (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+                        bool Left =             (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+                        bool Right =            (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+                        bool Start =            (Pad->wButtons & XINPUT_GAMEPAD_START);
+                        bool Back =             (Pad->wButtons & XINPUT_GAMEPAD_BACK);
+                        bool LeftThumb =        (Pad->wButtons & XINPUT_GAMEPAD_LEFT_THUMB);
+                        bool RightThumb =       (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB);
+                        bool LeftShoulder =     (Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+                        bool RightShoulder =    (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+                        bool AButton =          (Pad->wButtons & XINPUT_GAMEPAD_A);
+                        bool BButton =          (Pad->wButtons & XINPUT_GAMEPAD_B);
+                        bool XButton =          (Pad->wButtons & XINPUT_GAMEPAD_X);
+                        bool YButton =          (Pad->wButtons & XINPUT_GAMEPAD_Y);
+                        
+                        int16 LStickX = Pad->sThumbLX;
+                        int16 LStickY = Pad->sThumbLY;
+                        int16 RStickX = Pad->sThumbRX;
+                        int16 RStickY = Pad->sThumbRY;
+
+                        uint8 LTrigger = Pad->bLeftTrigger;
+                        uint8 RTrigger = Pad->bRightTrigger;
+
+                        XOffset += LStickX >> 12;
+                        YOffset -= LStickY >> 12;
+                    }
+                    else
+                    {
+                        // NOTE: Controller not connected 
+                    }
+                }
+
+//                 XINPUT_VIBRATION Vibration;
+//                Vibration.wLeftMotorSpeed = 60000;
+//                Vibration.wRightMotorSpeed = 60000;
+//                XInputSetState(0, &Vibration);
+
                 RenderWeirdGradient(&GlobalBackbuffer, XOffset, YOffset);
-                XOffset++;
-                YOffset += 2;
+//                XOffset++;
+//                YOffset += 2;
 
                 HDC DeviceContext = GetDC(Window);
 
                 win32_window_dimension Dimension = win32_GetWindowDimension(Window);
-                Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackbuffer);
+                Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, &GlobalBackbuffer);
 
                 ReleaseDC(Window, DeviceContext);
             }
