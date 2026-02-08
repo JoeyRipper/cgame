@@ -13,6 +13,7 @@ typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
+typedef int32 bool32;
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -29,18 +30,54 @@ struct win32_offscreen_buffer
     int BytesPerPixel;
 };
 
-// global - likely to change in the future.
-// statics always initialize to 0
-global_variable bool GlobalRunning;
-global_variable win32_offscreen_buffer GlobalBackbuffer;
-
 struct win32_window_dimension
 {
     int Width;
     int Height;
 };
 
+// global - likely to change in the future.
+// statics always initialize to 0
+global_variable bool GlobalRunning;
+global_variable win32_offscreen_buffer GlobalBackbuffer;
 
+
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub)
+{
+    return(0);
+}
+global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
+
+#define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
+typedef X_INPUT_SET_STATE(x_input_set_state);
+X_INPUT_SET_STATE(XInputSetStateStub)
+{
+    return(0);
+}
+global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
+#define XInputSetState XInputSetState_
+
+internal void
+Win32LoadXInput(void)
+{
+    // TODO: log
+    HMODULE XInputLibrary = LoadLibrary(TEXT("xinput1_4.dll"));
+    if (XInputLibrary)
+    {
+        XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");
+        if (!XInputGetState) {XInputGetState = XInputGetStateStub;}
+
+        XInputSetState = (x_input_set_state *)GetProcAddress(XInputLibrary, "XInputSetState");
+        if (!XInputSetState) {XInputSetState = XInputSetStateStub;}
+    }
+    else
+    {
+        // TODO: log
+    }
+}
 
 internal win32_window_dimension
 win32_GetWindowDimension(HWND Window)
@@ -264,6 +301,8 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 // main program entry
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int CmdShow)
  {
+    Win32LoadXInput();
+
     WNDCLASS WindowClass = {0};
 
     Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
@@ -301,7 +340,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
             0);
         if (Window)
         {
+            // Init Xaudio2 obj
             GlobalRunning = true;
+            
             int XOffset = 0;
             int YOffset = 0;
             while (GlobalRunning)
