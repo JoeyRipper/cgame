@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <Xinput.h>
+#include <xaudio2.h>
 
 // term - definition
 #define internal static
@@ -40,6 +41,7 @@ struct win32_window_dimension
 // statics always initialize to 0
 global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
+global_variable XAUDIO2_BUFFER GlobalSoundBuffer;
 
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
@@ -78,6 +80,91 @@ Win32LoadXInput(void)
         // TODO: log
     }
 }
+
+#define X_AUDIO2_CREATE(name) HRESULT name(IXAudio2 **ppXAudio2, UINT32 Flags, XAUDIO2_PROCESSOR XAudio2Processor)
+typedef X_AUDIO2_CREATE(x_audio2_create);
+//#define X_AUDIO2_CREATE_MASTERING(name) HRESULT name(IXAudio2MasteringVoice **ppMasteringVoice, UINT32 InputChannels, UINT32 InputSampleRate, UINT32 Flags, LPCWSTR szDeviceId, XAUDIO2_EFFECT_CHAIN *pEffectChain, AUDIO_STREAM_CATEGORY StreamCategory)
+//typedef X_AUDIO2_CREATE_MASTERING(x_audio2_create_mastering);
+//#define X_AUDIO2_CREATE_SOURCE(name) IXAudio2SourceVoice name(IXAudio2SourceVoice **ppSourceVoice, WAVEFORMATEX *pSourceFormat, UINT32 Flags, float MaxFrequencyRatio, IXAudio2VoiceCallback *pCallback, XAUDIO2_VOICE_SENDS *pSendList, XAUDIO2_EFFECT_CHAIN *pEffectChain)
+//typedef X_AUDIO2_CREATE_SOURCE(x_audio2_create_source);
+
+internal uint32 
+Win32InitAudio(int32 SamplesPerSecond, int32 BufferSize)
+{
+    if (FAILED(CoInitializeEx(0, COINIT_MULTITHREADED)))
+    {
+        return (0);
+    }
+
+    // NOTE: Load the library
+    HMODULE XAudio2Library = LoadLibrary(TEXT("xaudio2_9.dll"));
+
+    if (XAudio2Library)
+    {
+        // NOTE: Get an object
+        x_audio2_create *XAudio2Create = (x_audio2_create *)GetProcAddress(XAudio2Library, "XAudio2Create");
+
+
+        IXAudio2 *XAudio2;
+        if (XAudio2Create && SUCCEEDED(XAudio2Create(&XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR)))
+        {
+
+            IXAudio2MasteringVoice *MasteringVoice = 0;
+            if (SUCCEEDED(XAudio2->CreateMasteringVoice(&MasteringVoice, 2, SamplesPerSecond)))
+            {
+
+                OutputDebugString("Mastering voice was created\n");
+                
+                // NOTE: Create waveformat
+                // NOTE: waveformat is a blueprint of the way the datastructure is set up
+                WAVEFORMATEX WaveFormat = {};
+                
+                WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+                WaveFormat.nChannels = 2;
+                WaveFormat.nSamplesPerSec = SamplesPerSecond;
+                WaveFormat.wBitsPerSample = 16;
+                WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+                WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+                WaveFormat.cbSize = 0;
+
+
+                IXAudio2SourceVoice *SourceVoice;
+                if (SUCCEEDED(XAudio2->CreateSourceVoice(&SourceVoice, &WaveFormat)))
+                {
+                    GlobalSoundBuffer.
+
+                OutputDebugString("Source voice was created\n");
+                }
+                else
+                {
+                    // TODO: log
+                    OutputDebugString("Source voice was not created\n");
+                    return (0);
+                }
+            }
+            else
+            {
+                // TODO: log
+                OutputDebugString("Mastering Voice was not created\n");
+                return (0);
+            }
+
+
+        }
+        else
+        {
+            // TODO: log
+            return (0);
+        }
+    }
+    else
+    {
+        // TODO: log
+        return (0);
+    }
+    return (0);
+}
+
 
 internal win32_window_dimension
 win32_GetWindowDimension(HWND Window)
@@ -148,7 +235,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 
     int BitmapMemorySize = (Buffer->Width * Buffer->Height) * Buffer->BytesPerPixel;
     // VirtualAlloc is already initialized to 0
-    Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+    Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
 internal void
@@ -303,6 +390,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
  {
     Win32LoadXInput();
 
+    Win32InitAudio(48000, 48000*sizeof(int16)*2);
+
+
     WNDCLASS WindowClass = {0};
 
     Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
@@ -408,6 +498,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
 //                XOffset++;
 //                YOffset += 2;
 
+                void *Region1;
+                DWORD Region1Size;
                 HDC DeviceContext = GetDC(Window);
 
                 win32_window_dimension Dimension = win32_GetWindowDimension(Window);
@@ -425,6 +517,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
     {
         // TODO: Log
     }
+    CoUninitialize();
 
     return(0);
 }
