@@ -91,76 +91,79 @@ typedef X_AUDIO2_CREATE(x_audio2_create);
 internal uint32 
 Win32InitAudio(int32 SamplesPerSecond, int32 BufferSize)
 {
-    if (FAILED(CoInitializeEx(0, COINIT_MULTITHREADED)))
+    for (;;)
     {
-        return (0);
-    }
-
-    // NOTE: Load the library
-    HMODULE XAudio2Library = LoadLibrary(TEXT("xaudio2_9.dll"));
-
-    if (XAudio2Library)
-    {
-        // NOTE: Get an object
-        x_audio2_create *XAudio2Create = (x_audio2_create *)GetProcAddress(XAudio2Library, "XAudio2Create");
-
-
-        IXAudio2 *XAudio2;
-        if (XAudio2Create && SUCCEEDED(XAudio2Create(&XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR)))
+        if (FAILED(CoInitializeEx(0, COINIT_MULTITHREADED)))
         {
+            break;
+        }
 
-            IXAudio2MasteringVoice *MasteringVoice = 0;
-            if (SUCCEEDED(XAudio2->CreateMasteringVoice(&MasteringVoice, 2, SamplesPerSecond)))
+        // NOTE: Load the library
+        HMODULE XAudio2Library = LoadLibrary(TEXT("xaudio2_9.dll"));
+
+        if (XAudio2Library)
+        {
+            // NOTE: Get an object
+            x_audio2_create *XAudio2Create = (x_audio2_create *)GetProcAddress(XAudio2Library, "XAudio2Create");
+
+
+            IXAudio2 *XAudio2;
+            if (XAudio2Create && SUCCEEDED(XAudio2Create(&XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR)))
             {
 
-                OutputDebugString("Mastering voice was created\n");
-                
-                // NOTE: Create waveformat
-                // NOTE: waveformat is a blueprint of the way the datastructure is set up
-                WAVEFORMATEX WaveFormat = {};
-                
-                WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
-                WaveFormat.nChannels = 2;
-                WaveFormat.nSamplesPerSec = SamplesPerSecond;
-                WaveFormat.wBitsPerSample = 16;
-                WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
-                WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
-                WaveFormat.cbSize = 0;
-
-
-                IXAudio2SourceVoice *SourceVoice;
-                if (SUCCEEDED(XAudio2->CreateSourceVoice(&SourceVoice, &WaveFormat)))
+                IXAudio2MasteringVoice *MasteringVoice = 0;
+                if (SUCCEEDED(XAudio2->CreateMasteringVoice(&MasteringVoice, 2, SamplesPerSecond)))
                 {
-                    GlobalSoundBuffer.
 
-                OutputDebugString("Source voice was created\n");
+                    OutputDebugString("Mastering voice was created\n");
+                    
+                    // NOTE: Create waveformat
+                    // NOTE: waveformat is a blueprint of the way the datastructure is set up
+                    WAVEFORMATEX WaveFormat = {};
+                    
+                    WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+                    WaveFormat.nChannels = 2;
+                    WaveFormat.nSamplesPerSec = SamplesPerSecond;
+                    WaveFormat.wBitsPerSample = 16;
+                    WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+                    WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+                    WaveFormat.cbSize = 0;
+
+
+                    IXAudio2SourceVoice *SourceVoice;
+                    if (SUCCEEDED(XAudio2->CreateSourceVoice(&SourceVoice, &WaveFormat)))
+                    {
+                        GlobalSoundBuffer.
+
+                    OutputDebugString("Source voice was created\n");
+                    }
+                    else
+                    {
+                        // TODO: log
+                        OutputDebugString("Source voice was not created\n");
+                        break;
+                    }
                 }
                 else
                 {
                     // TODO: log
-                    OutputDebugString("Source voice was not created\n");
-                    return (0);
+                    OutputDebugString("Mastering Voice was not created\n");
+                    break;
                 }
+
+
             }
             else
             {
                 // TODO: log
-                OutputDebugString("Mastering Voice was not created\n");
-                return (0);
+                break; 
             }
-
-
         }
         else
         {
             // TODO: log
-            return (0);
+            break;
         }
-    }
-    else
-    {
-        // TODO: log
-        return (0);
     }
     return (0);
 }
@@ -390,7 +393,13 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
  {
     Win32LoadXInput();
 
-    Win32InitAudio(48000, 48000*sizeof(int16)*2);
+    int SampleHz = 48000;
+    int Hz = 256;
+    int SquareWaveCounter = 0;
+    int SquareWavePeriod = SampleHz/Hz;
+    int BytesPerSample = sizeof(int16) * 2;
+
+    Win32InitAudio(SampleHz, SampleHz*BytesPerSample);
 
 
     WNDCLASS WindowClass = {0};
@@ -435,6 +444,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
             
             int XOffset = 0;
             int YOffset = 0;
+
+
             while (GlobalRunning)
             {
                 MSG Message;
@@ -497,9 +508,44 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                 RenderWeirdGradient(&GlobalBackbuffer, XOffset, YOffset);
 //                XOffset++;
 //                YOffset += 2;
+                XAUDIO2_BUFFER AudioBufferArray [5];
 
+                DWORD WritePointer = ;
+                DWORD BytesToWrite = ;
+                
                 void *Region1;
                 DWORD Region1Size;
+                void *Region2;
+                DWORD Region2Size;
+
+
+                int16 *SampleOut;
+                DWORD Region1SampleCount = Region1Size/BytesPerSample;
+                DWORD Region2SampleCount = Region2Size/BytesPerSample;
+
+                for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; SampleIndex++)
+                {
+                    if (SquareWaveCounter == 0)
+                    {
+                        SquareWaveCounter = SquareWavePeriod;
+                    }
+                    int16 SampleValue = (SquareWaveCounter > (SquareWavePeriod / 2)) ? 3000 : -3000;
+                    *SampleOut++ = SampleValue;
+                    *SampleOut++ = SampleValue;
+                    SquareWaveCounter--;
+                }
+                for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; SampleIndex++)
+                {
+                    if (SquareWaveCounter == 0)
+                    {
+                        SquareWaveCounter = SquareWavePeriod;
+                    }
+                    int16 SampleValue = (SquareWaveCounter > (SquareWavePeriod / 2)) ? 3000 : -3000;
+                    *SampleOut++ = SampleValue;
+                    *SampleOut++ = SampleValue;
+                    SquareWaveCounter--;
+                }
+
                 HDC DeviceContext = GetDC(Window);
 
                 win32_window_dimension Dimension = win32_GetWindowDimension(Window);
